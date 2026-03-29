@@ -14,7 +14,10 @@ export function LoginGate({ onLogin }: LoginGateProps) {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (username === defaultUsername && password === defaultPassword) {
+    if (
+      username.trim() === defaultUsername.trim() &&
+      password.trim() === defaultPassword.trim()
+    ) {
       localStorage.setItem("resumeai-auth", "ok");
       onLogin();
       return;
