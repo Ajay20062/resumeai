@@ -1,21 +1,59 @@
-# React + TypeScript + Vite
+# ResumeAI
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+ResumeAI is a React + TypeScript web app that helps recruiters screen resumes against a job description, rank candidates by fit score, and view explainable reasons for each ranking.
 
-While this project uses React, Vite supports many popular JS frameworks. [See all the supported frameworks](https://vitejs.dev/guide/#scaffolding-your-first-vite-project).
+## Features
 
-## Deploy Your Own
+- Login-gated evaluator access (default `admin / 123456`)
+- Job description input panel
+- Resume intake parser from pasted text blocks
+- Configurable scoring weights (skills, overlap, experience)
+- Candidate ranking with fit score (0-100)
+- Explainable output: skill matches, keyword overlap, and experience
+- Adjustable minimum score filter
+- Recruiter summary cards (top score, average score, visible pool)
+- Vite-based frontend ready for Vercel deployment
 
-Deploy your own Vite project with Vercel.
+## Default Credentials
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/vercel/examples/tree/main/framework-boilerplates/vite-react&template=vite-react)
+- Username: `admin`
+- Password: `123456`
 
-_Live Example: https://vite-react-example.vercel.app_
+Override via environment variables:
 
-### Deploying From Your Terminal
+- `VITE_APP_USERNAME`
+- `VITE_APP_PASSWORD`
 
-You can deploy your new Vite project with a single command from your terminal using [Vercel CLI](https://vercel.com/download):
+## Resume Input Format
 
-```shell
-$ vercel
+Use this format in the Resume Intake box and separate candidates with `---`.
+
+```txt
+Name: Jane Doe
+Experience: 4 years
+Skills: React, TypeScript, AWS
+Summary: Built scalable recruiting dashboards
+Education: B.Tech IT
+---
+Name: ...
 ```
+
+## Run Locally
+
+```bash
+npm install
+npm run dev
+```
+
+## Build
+
+```bash
+npm run build
+```
+
+## Vercel Settings
+
+- Framework Preset: `Vite`
+- Build Command: `npm run build`
+- Output Directory: `dist`
+- Install Command: `npm install`
