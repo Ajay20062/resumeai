@@ -1,3 +1,8 @@
+import { useState } from 'react'
+import reactLogo from './assets/react.svg'
+import viteLogo from '/vite.svg'
+import './App.css'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 import { startTransition, useDeferredValue, useState } from "react";
 import { CandidateCard } from "./components/CandidateCard";
 import { JobDescriptionInput } from "./components/JobDescriptionInput";
@@ -97,6 +102,16 @@ function App() {
         <button type="button" className="secondary-btn" onClick={handleLogout}>
           Logout
         </button>
+        <p>
+          Edit <code>src/App.tsx</code> and save to test HMR
+        </p>
+      </div>
+      <p className="read-the-docs">
+        Click on the Vite and React logos to learn more
+      </p>
+      <SpeedInsights />
+    </>
+  )
       </header>
 
       <SummaryStats
