@@ -1,179 +1,270 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { startTransition, useDeferredValue, useState } from 'react'
 import { SpeedInsights } from '@vercel/speed-insights/react'
-import { startTransition, useDeferredValue, useState } from "react";
-import { CandidateCard } from "./components/CandidateCard";
-import { JobDescriptionInput } from "./components/JobDescriptionInput";
-import { LoginGate } from "./components/LoginGate";
-import { ResumeInputPanel } from "./components/ResumeInputPanel";
-import { ScoringControls } from "./components/ScoringControls";
-import { SummaryStats } from "./components/SummaryStats";
-import { sampleCandidates } from "./data/sampleCandidates";
-import { parseCandidatesFromText } from "./lib/parseResumeText";
-import { rankCandidates } from "./lib/scoring";
-import type { Candidate, ScoringWeights } from "./types";
-import "./App.css";
+import { AdminDashboard } from './components/AdminDashboard'
+import { AnalysisDashboard } from './components/AnalysisDashboard'
+import { AuthMode, AuthPanel } from './components/AuthPanel'
+import { BrandMark } from './components/BrandMark'
+import { CandidateDashboard } from './components/CandidateDashboard'
+import { FeatureHighlights } from './components/FeatureHighlights'
+import { PublicLanding } from './components/PublicLanding'
+import { RecruiterDashboard } from './components/RecruiterDashboard'
+import { UploadPanel } from './components/UploadPanel'
+import { generateResumeAnalysis } from './lib/analyzeResume'
+import { AuthUser, UserRole } from './types/auth'
+import { ResumeAnalysis, ValidationErrors } from './types/resume'
+import './App.css'
 
-const defaultJD =
-  "We are hiring a frontend engineer with 3+ years experience in React, TypeScript, testing, API integration, and AWS deployment knowledge.";
+const ACCEPTED_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+])
+const ACCEPTED_EXTENSIONS = ['.pdf', '.doc', '.docx']
+const MAX_FILE_SIZE = 5 * 1024 * 1024
 
-const defaultResumeText = `Name: Kavya Sharma
-Experience: 6 years
-Skills: React, TypeScript, GraphQL, AWS, Testing
-Summary: Built scalable frontend platforms and mentored engineers across two product teams.
-Education: B.E Computer Engineering
----
-Name: Nikhil Rao
-Experience: 2 years
-Skills: JavaScript, Node.js, MongoDB, Docker
-Summary: Developed backend APIs and worked on resume parsing automation for internal HR tools.
-Education: B.Tech Information Technology`;
+type AppScreen =
+  | 'public'
+  | 'login'
+  | 'signup'
+  | 'candidate-dashboard'
+  | 'recruiter-dashboard'
+  | 'admin-dashboard'
+  | 'workspace'
+
+function roleLabel(role: UserRole): string {
+  return role.charAt(0).toUpperCase() + role.slice(1)
+}
+
+function dashboardScreenForRole(role: UserRole): AppScreen {
+  if (role === 'candidate') {
+    return 'candidate-dashboard'
+  }
+
+  if (role === 'recruiter') {
+    return 'recruiter-dashboard'
+  }
+
+  return 'admin-dashboard'
+}
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(
-    () => localStorage.getItem("resumeai-auth") === "ok"
-  );
-  const [jobDescription, setJobDescription] = useState(defaultJD);
-  const [candidatePool, setCandidatePool] = useState<Candidate[]>(sampleCandidates);
-  const [resumeText, setResumeText] = useState(defaultResumeText);
-  const [minimumScore, setMinimumScore] = useState(0);
-  const [weights, setWeights] = useState<ScoringWeights>({
-    skills: 6,
-    overlap: 2,
-    experience: 2
-  });
+  const [screen, setScreen] = useState<AppScreen>('public')
+  const [user, setUser] = useState<AuthUser | null>(null)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [jobDescription, setJobDescription] = useState('')
+  const [errors, setErrors] = useState<ValidationErrors>({})
+  const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null)
+  const [analysisHistory, setAnalysisHistory] = useState<ResumeAnalysis[]>([])
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const deferredJobDescription = useDeferredValue(jobDescription)
 
-  const deferredJobDescription = useDeferredValue(jobDescription);
-  const rankedCandidates = rankCandidates(candidatePool, deferredJobDescription, weights);
-  const filteredCandidates = rankedCandidates.filter(
-    (candidate) => candidate.score >= minimumScore
-  );
-  const averageScore =
-    rankedCandidates.length === 0
-      ? 0
-      : Math.round(
-          rankedCandidates.reduce((sum, candidate) => sum + candidate.score, 0) /
-            rankedCandidates.length
-        );
-  const topScore = rankedCandidates[0]?.score ?? 0;
-
-  function handleImportCandidates() {
-    const imported = parseCandidatesFromText(resumeText);
-    if (imported.length === 0) {
-      return;
+  const validateFile = (file: File | null): string | undefined => {
+    if (!file) {
+      return 'Please upload a resume file.'
     }
-    startTransition(() => {
-      setCandidatePool((previous) => {
-        const merged = [...previous];
-        for (const candidate of imported) {
-          const exists = previous.some(
-            (item) => item.name.toLowerCase() === candidate.name.toLowerCase()
-          );
-          if (!exists) {
-            merged.push(candidate);
+
+    const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+    const isValidType = ACCEPTED_TYPES.has(file.type) || ACCEPTED_EXTENSIONS.includes(extension)
+
+    if (!isValidType) {
+      return 'Only PDF, DOC, and DOCX files are supported.'
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      return 'File is too large. Maximum allowed size is 5 MB.'
+    }
+
+    return undefined
+  }
+
+  const handleFileSelected = (file: File | null) => {
+    const fileError = validateFile(file)
+    setSelectedFile(fileError ? null : file)
+    setErrors((previous) => ({
+      ...previous,
+      file: fileError,
+    }))
+    if (!fileError) {
+      setAnalysis(null)
+    }
+  }
+
+  const handleJobDescriptionChange = (value: string) => {
+    setJobDescription(value)
+    setErrors((previous) => ({
+      ...previous,
+      jobDescription: undefined,
+    }))
+    if (analysis) {
+      setAnalysis(null)
+    }
+  }
+
+  const handleAnalyze = () => {
+    const nextErrors: ValidationErrors = {}
+    const fileError = validateFile(selectedFile)
+
+    if (fileError) {
+      nextErrors.file = fileError
+    }
+
+    if (jobDescription.trim().length < 80) {
+      nextErrors.jobDescription =
+        'Job description is too short. Add at least 80 characters.'
+    }
+
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length > 0 || !selectedFile) {
+      return
+    }
+
+    setIsAnalyzing(true)
+    window.setTimeout(() => {
+      const nextAnalysis = generateResumeAnalysis(
+        selectedFile.name,
+        jobDescription,
+      )
+      startTransition(() => {
+        setAnalysis(nextAnalysis)
+        setAnalysisHistory((previous) => [nextAnalysis, ...previous])
+        setScreen('candidate-dashboard')
+      })
+      setIsAnalyzing(false)
+    }, 900)
+  }
+
+  const logout = () => {
+    setUser(null)
+    setScreen('public')
+  }
+
+  const canUseWorkspace =
+    user?.role === 'candidate' || user?.role === 'recruiter'
+
+  if (screen === 'public') {
+    return (
+      <>
+        <PublicLanding
+          onLogin={() => setScreen('login')}
+          onSignup={() => setScreen('signup')}
+        />
+        <SpeedInsights />
+      </>
+    )
+  }
+
+  if (!user && (screen === 'login' || screen === 'signup')) {
+    return (
+      <>
+        <AuthPanel
+          mode={screen === 'login' ? 'login' : 'signup'}
+          onSwitchMode={(nextMode: AuthMode) =>
+            setScreen(nextMode === 'login' ? 'login' : 'signup')
           }
-        }
-        return merged;
-      });
-    });
+          onAuthenticate={(nextUser) => {
+            setUser(nextUser)
+            setScreen(dashboardScreenForRole(nextUser.role))
+          }}
+          onBack={() => setScreen('public')}
+        />
+        <SpeedInsights />
+      </>
+    )
   }
 
-  function handleLogout() {
-    localStorage.removeItem("resumeai-auth");
-    setIsAuthenticated(false);
-  }
-
-  if (!isAuthenticated) {
-    return <LoginGate onLogin={() => setIsAuthenticated(true)} />;
+  if (!user) {
+    return null
   }
 
   return (
-    <div className="app-shell">
-      <header className="hero">
-        <div>
-          <h1>ResumeAI Recruiter Assistant</h1>
-          <p>
-            Screen resumes against role requirements, rank candidates by fit,
-            and explain each selection.
-          </p>
-        </div>
-        <button type="button" className="secondary-btn" onClick={handleLogout}>
-          Logout
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
+    <>
+      <main className="app-shell">
+        <header className="app-topbar">
+          <div>
+            <BrandMark />
+            <p className="user-label">{user.email}</p>
+            <p className="role-label">{roleLabel(user.role)}</p>
+          </div>
+          <div className="nav-actions">
+            <button
+              type="button"
+              className={`nav-btn ${
+                screen === 'candidate-dashboard' ||
+                screen === 'recruiter-dashboard' ||
+                screen === 'admin-dashboard'
+                  ? 'nav-btn-active'
+                  : ''
+              }`}
+              onClick={() => setScreen(dashboardScreenForRole(user.role))}
+            >
+              Dashboard
+            </button>
+            {canUseWorkspace ? (
+              <button
+                type="button"
+                className={`nav-btn ${screen === 'workspace' ? 'nav-btn-active' : ''}`}
+                onClick={() => setScreen('workspace')}
+              >
+                Workspace
+              </button>
+            ) : null}
+            <button type="button" className="logout-btn" onClick={logout}>
+              Logout
+            </button>
+          </div>
+        </header>
+
+        {screen === 'candidate-dashboard' ? (
+          <CandidateDashboard analyses={analysisHistory} />
+        ) : null}
+        {screen === 'recruiter-dashboard' ? (
+          <RecruiterDashboard analysesCount={analysisHistory.length} />
+        ) : null}
+        {screen === 'admin-dashboard' ? (
+          <AdminDashboard analysesCount={analysisHistory.length} />
+        ) : null}
+        {screen === 'workspace' ? (
+          <>
+            <header className="hero">
+              <h1>Analyze resumes with structured ATS scoring and rewrite guidance.</h1>
+              <p className="subtitle">
+                Upload your resume, add a target job description, and get a clear
+                match score with actionable suggestions.
+              </p>
+            </header>
+
+            <FeatureHighlights />
+
+            <section className="workspace-grid">
+              <UploadPanel
+                selectedFile={selectedFile}
+                fileError={errors.file}
+                jobDescription={jobDescription}
+                jobDescriptionError={errors.jobDescription}
+                onFileSelected={handleFileSelected}
+                onJobDescriptionChange={handleJobDescriptionChange}
+                onAnalyze={handleAnalyze}
+                isAnalyzing={isAnalyzing}
+              />
+              <AnalysisDashboard analysis={analysis} />
+            </section>
+
+            <section className="status-panel">
+              <h2>Project status</h2>
+              <p>
+                Resume AI Agent flow is integrated across landing, auth, dashboard, and
+                workspace. Next step is backend API integration for real resume parsing and scoring.
+              </p>
+              <p className="deferred-note">
+                Deferred job description length: {deferredJobDescription.trim().length} characters.
+              </p>
+            </section>
+          </>
+        ) : null}
+      </main>
       <SpeedInsights />
     </>
   )
-      </header>
-
-      <SummaryStats
-        totalCandidates={candidatePool.length}
-        visibleCandidates={filteredCandidates.length}
-        averageScore={averageScore}
-        topScore={topScore}
-      />
-
-      <main className="layout">
-        <div className="column">
-          <JobDescriptionInput
-            value={jobDescription}
-            onChange={(value) => {
-              startTransition(() => setJobDescription(value));
-            }}
-          />
-          <ResumeInputPanel
-            value={resumeText}
-            onChange={setResumeText}
-            onImport={handleImportCandidates}
-          />
-          <ScoringControls weights={weights} onChange={setWeights} />
-        </div>
-
-        <section className="panel">
-          <div className="panel-header">
-            <h2>Ranked Candidates</h2>
-            <span className="panel-meta">{filteredCandidates.length} visible</span>
-          </div>
-
-          <label className="range-field">
-            <span>Minimum score: {minimumScore}</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={minimumScore}
-              onChange={(event) => setMinimumScore(Number(event.target.value))}
-            />
-          </label>
-
-          <div className="results">
-            {filteredCandidates.length === 0 ? (
-              <p className="empty-state">
-                No candidates meet this score threshold. Lower the minimum score.
-              </p>
-            ) : (
-              filteredCandidates.map((candidate, index) => (
-                <CandidateCard
-                  key={candidate.id}
-                  candidate={candidate}
-                  rank={index + 1}
-                />
-              ))
-            )}
-          </div>
-        </section>
-      </main>
-    </div>
-  );
 }
 
-export default App;
+export default App

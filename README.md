@@ -1,42 +1,16 @@
-# ResumeAI
+# Resume AI Agent
 
-ResumeAI is a React + TypeScript web app that helps recruiters screen resumes against a job description, rank candidates by fit score, and view explainable reasons for each ranking.
+Resume AI Agent is a React + TypeScript + Vite frontend for resume parsing, ATS matching, and improvement suggestions.
+It includes a public landing website, role-based authentication (sign in/sign up), and dashboards for candidates, recruiters, and admins.
+The UI now has separate in-app pages for Sign In, Sign Up, Candidate Dashboard, Recruiter Dashboard, Admin Dashboard, and Workspace.
 
-## Features
+## Tech Stack
 
-- Login-gated evaluator access (default `admin / 123456`)
-- Job description input panel
-- Resume intake parser from pasted text blocks
-- Configurable scoring weights (skills, overlap, experience)
-- Candidate ranking with fit score (0-100)
-- Explainable output: skill matches, keyword overlap, and experience
-- Adjustable minimum score filter
-- Recruiter summary cards (top score, average score, visible pool)
-- Vite-based frontend ready for Vercel deployment
-
-## Default Credentials
-
-- Username: `admin`
-- Password: `123456`
-
-Override via environment variables:
-
-- `VITE_APP_USERNAME`
-- `VITE_APP_PASSWORD`
-
-## Resume Input Format
-
-Use this format in the Resume Intake box and separate candidates with `---`.
-
-```txt
-Name: Jane Doe
-Experience: 4 years
-Skills: React, TypeScript, AWS
-Summary: Built scalable recruiting dashboards
-Education: B.Tech IT
----
-Name: ...
-```
+- React 18
+- TypeScript 5
+- Vite 5
+- ESLint 9
+- Vercel Speed Insights
 
 ## Run Locally
 
@@ -45,15 +19,42 @@ npm install
 npm run dev
 ```
 
-## Build
+## Scripts
+
+- `npm run dev`: Start local dev server.
+- `npm run lint`: Run ESLint checks.
+- `npm run typecheck`: Run TypeScript checks.
+- `npm run build`: Run typecheck and create production build.
+- `npm run check`: Run lint + build in sequence.
+- `npm run preview`: Preview production build locally.
+
+## Project Structure
+
+```text
+src/
+  App.tsx                    # App orchestration and state flow
+  App.css                    # App layout and component styling
+  main.tsx                   # Entrypoint
+  index.css                  # Global theme + typography
+  components/
+    PublicLanding.tsx        # Public website for Resume AI Agent
+    AuthPanel.tsx            # Sign in/sign up with role selection
+    CandidateDashboard.tsx   # Candidate-specific dashboard page
+    RecruiterDashboard.tsx   # Recruiter-specific dashboard page
+    AdminDashboard.tsx       # Admin-specific dashboard page
+    UploadPanel.tsx          # Resume + job description input UX
+    AnalysisDashboard.tsx    # ATS score breakdown + recommendations
+    FeatureHighlights.tsx    # Landing feature cards
+  lib/
+    analyzeResume.ts         # Mock ATS scoring engine (replace with API call)
+  types/
+    resume.ts                # Shared type definitions
+```
+
+## Deployment
+
+This app is Vercel-ready.
 
 ```bash
 npm run build
 ```
-
-## Vercel Settings
-
-- Framework Preset: `Vite`
-- Build Command: `npm run build`
-- Output Directory: `dist`
-- Install Command: `npm install`
